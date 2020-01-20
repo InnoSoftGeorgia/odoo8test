@@ -1,0 +1,83 @@
+<openerp>
+    <data>
+
+        <record model="ir.actions.act_window" id="stock.act_stock_return_picking">
+            <field name="name">Return Shipment</field>
+            <field name="res_model">stock.return.picking</field>
+            <field name="src_model">stock.picking</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+            <field name="key2">client_action_multi</field>
+            <field name="multi">True</field>
+            <field name="view_id" ref="stock.view_stock_return_picking_form"/>
+            <field name="type">ir.actions.act_window</field>
+        </record> 
+
+        <record id="view_stock_exchange_picking_form" model="ir.ui.view">
+            <field name="name">Exchange lines</field>
+            <field name="model">stock.return.picking</field>
+            <field name="arch" type="xml">
+                <form string="Exchange lines">
+                    <group string="Select products to return">
+                        <field name="move_dest_exists" invisible="1"/>
+                        <div attrs="{'invisible': [('move_dest_exists', '=', False)]}" class="oe_grey" colspan="4">
+                            <p>This picking appears to be chained with another operation. Later, if you receive the goods you are returning now, make sure to <b>reverse</b> the returned picking in order to avoid logistic rules to be applied again (which would create duplicated operations)</p>
+                        </div>
+                        <field name="product_return_moves" colspan="4" nolabel="1">
+                            <tree create="false" editable="bottom">
+                                <field name="product_id" readonly="1"/>
+                                <field name="lot_id" readonly="1" domain="[('product_id', '=', product_id)]" context="{'default_product_id': product_id}"/>
+                                <field name="quantity" readonly="1"/>
+                            </tree>
+                        </field>
+                    </group>
+                    <group string="Select exchange products">
+                        <field name="move_dest_exists" invisible="1"/>
+                        <div attrs="{'invisible': [('move_dest_exists', '=', False)]}" class="oe_grey" colspan="4">
+                            <p>This picking appears to be chained with another operation. Later, if you receive the goods you are returning now, make sure to <b>reverse</b> the returned picking in order to avoid logistic rules to be applied again (which would create duplicated operations)</p>
+                        </div>
+                        <field name="product_exchange_moves" colspan="4" nolabel="1">
+                            <tree editable="bottom">
+                                <field name="product_id" on_change="product_id_change(product_id)"/>
+                                <field name="name"/>
+                                <field name="quantity"/>
+                                <field name="price_unit"/>
+                            </tree>
+                        </field>
+                    </group>
+                    <group>
+                        <field name="invoice_state"/>
+                    </group>
+                    <footer>
+                        <button name="create_exchange" string="Exchange" type="object" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel" />
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <act_window name="Exchange"
+            res_model="stock.return.picking"
+            src_model="stock.picking"
+            view_mode="form"
+            target="new"
+            key2="client_action_multi"
+            multi="True"
+            id="act_stock_return_picking_ex"
+            view_id="view_stock_exchange_picking_form"/>
+
+        <record id="view_picking_form" model="ir.ui.view">
+            <field name="name">stock.picking.form</field>
+            <field name="model">stock.picking</field>
+            <field eval="12" name="priority"/>
+            <field name="inherit_id" ref="stock.view_picking_form"/>
+            <field name="arch" type="xml">
+                <xpath  expr="//button[@string='Reverse Transfer']" position="after">
+                    <button name="%(act_stock_return_picking_ex)d" string="Exchange" states="done" type="action" groups="base.group_user"/>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</openerp>
