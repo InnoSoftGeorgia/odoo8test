@@ -50,7 +50,13 @@ class stock_return_picking(osv.osv_memory):
         pick_obj = self.pool.get('stock.picking')
         pick = pick_obj.browse(cr, uid, record_id, context=context)
         
-        sale_id = self.pool.get('sale.order').search(cr,uid,[('name','=', pick.origin)])[0]
+        sale_id = self.pool.get('sale.order').search(cr,uid,[('name','=', pick.origin)])
+        if sale_id:
+            sale_id = sale_id[0]
+        else:
+            raise osv.except_osv(_('Error!'),
+                _('You cannot exchange products without sales order.'))
+
         sale_order = self.pool.get('sale.order').browse(cr,uid,sale_id)
 
         if sale_order:
