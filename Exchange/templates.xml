@@ -1,6 +1,7 @@
 <openerp>
     <data>
 
+        <!-- Set view for old action -->
         <record model="ir.actions.act_window" id="stock.act_stock_return_picking">
             <field name="name">Return Shipment</field>
             <field name="res_model">stock.return.picking</field>
@@ -11,8 +12,9 @@
             <field name="multi">True</field>
             <field name="view_id" ref="stock.view_stock_return_picking_form"/>
             <field name="type">ir.actions.act_window</field>
-        </record> 
+        </record>
 
+        <!-- Exchange form -->
         <record id="view_stock_exchange_picking_form" model="ir.ui.view">
             <field name="name">Exchange lines</field>
             <field name="model">stock.return.picking</field>
@@ -57,6 +59,7 @@
             </field>
         </record>
 
+        <!-- Exchange Action -->
         <act_window name="Exchange"
             res_model="stock.return.picking"
             src_model="stock.picking"
@@ -67,6 +70,7 @@
             id="act_stock_return_picking_ex"
             view_id="view_stock_exchange_picking_form"/>
 
+        <!-- Exchange Button -->
         <record id="view_picking_form" model="ir.ui.view">
             <field name="name">stock.picking.form</field>
             <field name="model">stock.picking</field>
