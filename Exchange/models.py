@@ -1,6 +1,8 @@
 from openerp.osv import osv, fields
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
+from openerp.tools import DEFAULT_SERVER_DATE_FORMAT
+import time
 
 # New product list to exchange the old ones
 class stock_exchange_picking_line(osv.osv_memory):
@@ -32,6 +34,34 @@ class stock_exchange_picking_line(osv.osv_memory):
             else:
                 res['value']['name'] =  name
         return res
+
+class sale_order(osv.Model):
+    _inherit = 'sale.order'
+
+    def _make_invoice(self, cr, uid, order, lines, context=None):
+        inv_obj = self.pool.get('account.invoice')
+        obj_invoice_line = self.pool.get('account.invoice.line')
+        if context is None:
+            context = {}
+        invoiced_sale_line_ids = self.pool.get('sale.order.line').search(cr, uid, [('order_id', '=', order.id), ('invoiced', '=', True)], context=context)
+        from_line_invoice_ids = []
+        for invoiced_sale_line_id in self.pool.get('sale.order.line').browse(cr, uid, invoiced_sale_line_ids, context=context):
+            for invoice_line_id in invoiced_sale_line_id.invoice_lines:
+                if invoice_line_id.invoice_id.id not in from_line_invoice_ids:
+                    from_line_invoice_ids.append(invoice_line_id.invoice_id.id)
+        if not context.get('ignore_prev_invoices', False):
+            for preinv in order.invoice_ids:
+                if preinv.state not in ('cancel',) and preinv.id not in from_line_invoice_ids:
+                    for preline in preinv.invoice_line:
+                        inv_line_id = obj_invoice_line.copy(cr, uid, preline.id, {'invoice_id': False, 'price_unit': -preline.price_unit})
+                        lines.append(inv_line_id)
+        inv = self._prepare_invoice(cr, uid, order, lines, context=context)
+        inv_id = inv_obj.create(cr, uid, inv, context=context)
+        data = inv_obj.onchange_payment_term_date_invoice(cr, uid, [inv_id], inv['payment_term'], time.strftime(DEFAULT_SERVER_DATE_FORMAT))
+        if data.get('value', False):
+            inv_obj.write(cr, uid, [inv_id], data['value'], context=context)
+        inv_obj.button_compute(cr, uid, [inv_id])
+        return inv_id
 
 # Exchange model
 class stock_return_picking(osv.osv_memory):
@@ -93,14 +123,42 @@ class stock_return_picking(osv.osv_memory):
                     context=dict(context or {}, company_id=sale_order.warehouse_id.id)
                 )['value']
 
-                price += defaults['price_unit']
+                price += defaults['price_unit'] * product.quantity
 
                 # Add new products in Order Line
-                cr.execute('INSERT INTO sale_order_line (order_id, product_id, name, product_uom_qty, product_uos_qty, price_unit, product_uom, delay, state) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)', (sale_id, product.product_id.id, product.name, product.quantity, defaults['product_uos_qty'], defaults['price_unit'], result[1], 0.0, sale_order.state))
+                cr.execute('INSERT INTO sale_order_line (order_id, product_id, name, product_uom_qty, product_uos_qty, price_unit, product_uom, delay, state) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)', (sale_id, product.product_id.id, product.name, product.quantity, defaults['product_uos_qty'], defaults['price_unit'], result[1], 0.0, 'confirmed'))
             cr.execute('UPDATE sale_order set amount_untaxed=%s, amount_total=%s WHERE id=%s', (price, price, sale_id))
+            self._create_new_delivery(cr, uid, sale_order, context=context)
+            self._create_new_invoice(cr, uid, sale_order, context=context)
         else:
             raise osv.except_osv(_('Error!'),
                 _('You cannot exchange products without sales order.'))
 
         # Return old products
         return super(stock_return_picking, self).create_returns(cr, uid, ids, context=context)
+
+    def _create_new_delivery(self, cr, uid, sale_order, context=None):
+        sale_order.write({'state': 'shipping_except'})
+        sale_order.action_ship_create()
+
+    def _create_new_invoice(self, cr, uid, sale_order, context=None):
+        for invoice in sale_order.invoice_ids:
+            if invoice.state == 'cancel':
+                continue
+            if invoice.payment_ids:
+                refund_obj = self.pool.get('account.invoice.refund')
+                refund_id = refund_obj.create(cr, uid, {
+                    'date': time.strftime('%Y-%m-%d'),
+                    'journal_id': refund_obj._get_journal(cr, uid, context=None),
+                    'description': invoice.name,
+                    'filter_refund': 'refund',
+                }, context=context)
+                invoice_ctx = dict(context or {})
+                invoice_ctx['active_ids'] = [invoice.id]
+                refund_obj.invoice_refund(cr, uid, [refund_id], context=invoice_ctx)
+            else:
+                # cancel invoice if there is no payments
+                invoice.signal_workflow('invoice_cancel')
+        for line in sale_order.order_line:
+            line.invoiced = False
+        sale_order.with_context(ignore_prev_invoices=True).action_invoice_create()

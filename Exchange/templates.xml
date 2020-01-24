@@ -40,10 +40,11 @@
                         </div>
                         <field name="product_exchange_moves" colspan="4" nolabel="1">
                             <tree editable="bottom">
-                                <field name="product_id" on_change="product_id_change(product_id)"/>
+                                <field name="product_id" on_change="product_id_change(product_id, quantity)"/>
                                 <field name="name"/>
-                                <field name="quantity"/>
+                                <field name="quantity" on_change="product_id_change(product_id, quantity)"/>
                                 <field name="price_unit"/>
+                                <field name="price_subtotal"/>
                             </tree>
                         </field>
                     </group>
@@ -78,6 +79,19 @@
             <field name="inherit_id" ref="stock.view_picking_form"/>
             <field name="arch" type="xml">
                 <xpath  expr="//button[@string='Reverse Transfer']" position="after">
+                    <button name="%(act_stock_return_picking_ex)d" string="Exchange" states="done" type="action" groups="base.group_user"/>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Exchange Button for Sales Order -->
+        <record id="view_order_form" model="ir.ui.view">
+            <field name="name">sale.order.form</field>
+            <field name="model">sale.order</field>
+            <field eval="12" name="priority"/>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//button[@name='action_cancel']" position="after">
                     <button name="%(act_stock_return_picking_ex)d" string="Exchange" states="done" type="action" groups="base.group_user"/>
                 </xpath>
             </field>
