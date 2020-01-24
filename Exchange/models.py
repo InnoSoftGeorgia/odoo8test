@@ -39,6 +39,10 @@ class sale_order(osv.Model):
     _inherit = 'sale.order'
 
     def _make_invoice(self, cr, uid, order, lines, context=None):
+        """
+        Override sale orders _make_invoice function.
+        Don't add previous invoice lines to new invoice if user wished to ignore them.
+        """
         inv_obj = self.pool.get('account.invoice')
         obj_invoice_line = self.pool.get('account.invoice.line')
         if context is None:
@@ -138,10 +142,17 @@ class stock_return_picking(osv.osv_memory):
         return super(stock_return_picking, self).create_returns(cr, uid, ids, context=context)
 
     def _create_new_delivery(self, cr, uid, sale_order, context=None):
+        """
+        Creates new delivery order to sale order.
+        """
         sale_order.write({'state': 'shipping_except'})
         sale_order.action_ship_create()
 
     def _create_new_invoice(self, cr, uid, sale_order, context=None):
+        """
+        In each made invoices refund that invoice if payment was already made,
+        otherwise cancel, and create new invoices for new orders.
+        """
         for invoice in sale_order.invoice_ids:
             if invoice.state == 'cancel':
                 continue
