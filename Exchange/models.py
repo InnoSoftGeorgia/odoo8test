@@ -171,5 +171,6 @@ class stock_return_picking(osv.osv_memory):
                 # cancel invoice if there is no payments
                 invoice.signal_workflow('invoice_cancel')
         for line in sale_order.order_line:
-            line.invoiced = False
+            line.state = 'confirmed'
+            line.invoice_lines = False
         sale_order.with_context(ignore_prev_invoices=True).action_invoice_create()
